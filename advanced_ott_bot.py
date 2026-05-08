@@ -1,6 +1,6 @@
 # ============================================
 # ADVANCED OTT DOWNLOADER BOT
-# WITH ADMIN SYSTEM & RENDER FIX
+# WITH ADMIN SYSTEM
 # ============================================
 
 import telebot
@@ -8,139 +8,382 @@ import yt_dlp
 import threading
 import os
 import requests
-from flask import Flask  # Naya Add Kiya
-from threading import Thread # Naya Add Kiya
+from flask import Flask  # Flask add kiya
+from threading import Thread # Threading add kiya
 
 # ============================================
-# RENDER PORT FIX (KEEP ALIVE SYSTEM)
+# FLASK SERVER FOR RENDER (ONLY ADDED THIS)
 # ============================================
 
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is Running Successfully!"
+    return "Bot is Alive!"
 
-def run_flask():
-    # Render hamesha environment se PORT uthata hai
+def run():
+    # Render automatically PORT environment variable deta hai
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = Thread(target=run_flask)
+    t = Thread(target=run)
     t.start()
 
 # ============================================
-# BOT TOKEN & ADMINS
+# BOT TOKEN
 # ============================================
 
-BOT_TOKEN = "8751935211:AAEKf3kld4eqqTMuo8RKAh6OMIzFLY7oVqY" # Apna asli token yaha dalein
-ADMINS = [5254068665] # Apna numeric ID yaha dalein
-FORCE_SUB_CHANNEL = "@YourChannelUsername"
+BOT_TOKEN = "8751935211:AAEKf3kld4eqqTMuo8RKAh6OMIzFLY7oVqY"
+
+# ============================================
+# ADMIN USER IDS
+# ============================================
+
+ADMINS = [5254068665]
+
+# ============================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
 download_status = {}
-USERS_FILE = "users.txt"
 
 # ============================================
-# HELPERS
+# FORCE SUB CHANNEL
 # ============================================
 
-def check_subscription(user_id):
-    try:
-        member = bot.get_chat_member(FORCE_SUB_CHANNEL, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-def send_force_sub(chat_id):
-    text = f"❌ *Join Channel First*\n\n👉 {FORCE_SUB_CHANNEL}\n\nThen send /start again."
-    bot.send_message(chat_id, text, parse_mode="Markdown")
-
-def is_admin(user_id):
-    return user_id in ADMINS
-
-def save_user(user_id):
-    if not os.path.exists(USERS_FILE):
-        open(USERS_FILE, "w").close()
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-    if str(user_id) not in users:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{user_id}\n")
+FORCE_SUB_CHANNEL = "@Movievirus0"
 
 # ============================================
-# COMMANDS
+# START
 # ============================================
 
 @bot.message_handler(commands=['start'])
 def start(message):
+
     user_id = message.from_user.id
-    save_user(user_id)
+
     if not check_subscription(user_id):
         send_force_sub(message.chat.id)
         return
-    text = "🔥 *ADVANCED OTT DOWNLOADER*\n\n✅ Auto Thumbnail\n✅ HD Quality\n✅ Admin System\n✅ Progress Bar\n\n📥 Usage:\n`/dl URL`"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+    text = """
+🔥 *ADVANCED OTT DOWNLOADER*
+
+✅ Auto Thumbnail
+✅ HD Quality
+✅ Admin System
+✅ Auto Upload
+✅ Progress Bar
+
+━━━━━━━━━━━━━━━
+
+📥 Usage:
+
+`/dl URL`
+
+━━━━━━━━━━━━━━━
+"""
+
+    bot.send_message(
+        message.chat.id,
+        text,
+        parse_mode="Markdown"
+    )
+
+# ============================================
+# FORCE SUB CHECK
+# ============================================
+
+def check_subscription(user_id):
+
+    try:
+
+        member = bot.get_chat_member(
+            FORCE_SUB_CHANNEL,
+            user_id
+        )
+
+        if member.status in ["member", "administrator", "creator"]:
+            return True
+
+    except:
+        return False
+
+    return False
+
+# ============================================
+# FORCE SUB MESSAGE
+# ============================================
+
+def send_force_sub(chat_id):
+
+    text = f"""
+❌ *Join Channel First*
+
+👉 {FORCE_SUB_CHANNEL}
+
+Then send /start again.
+"""
+
+    bot.send_message(
+        chat_id,
+        text,
+        parse_mode="Markdown"
+    )
+
+# ============================================
+# ADMIN CHECK
+# ============================================
+
+def is_admin(user_id):
+    return user_id in ADMINS
+
+# ============================================
+# ADMIN PANEL
+# ============================================
 
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
-    if not is_admin(message.from_user.id): return
-    text = "👑 *ADMIN PANEL*\n\n/users - Total users\n/broadcast - Message all"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+    if not is_admin(message.from_user.id):
+        return
+
+    text = """
+👑 *ADMIN PANEL*
+
+/users - Total users
+/broadcast - Broadcast message
+/stats - Bot stats
+"""
+
+    bot.send_message(
+        message.chat.id,
+        text,
+        parse_mode="Markdown"
+    )
+
+# ============================================
+# USERS COMMAND
+# ============================================
+
+USERS_FILE = "users.txt"
+
+def save_user(user_id):
+
+    if not os.path.exists(USERS_FILE):
+        open(USERS_FILE, "w").close()
+
+    with open(USERS_FILE, "r") as f:
+        users = f.read().splitlines()
+
+    if str(user_id) not in users:
+        with open(USERS_FILE, "a") as f:
+            f.write(f"{user_id}\n")
+
+@bot.message_handler(func=lambda m: True)
+def all_messages(message):
+    save_user(message.from_user.id)
+
+# ============================================
+# TOTAL USERS
+# ============================================
 
 @bot.message_handler(commands=['users'])
 def total_users(message):
-    if not is_admin(message.from_user.id): return
-    total = len(open(USERS_FILE).readlines()) if os.path.exists(USERS_FILE) else 0
-    bot.send_message(message.chat.id, f"👥 Total Users: {total}")
+
+    if not is_admin(message.from_user.id):
+        return
+
+    if not os.path.exists(USERS_FILE):
+        total = 0
+    else:
+        with open(USERS_FILE, "r") as f:
+            total = len(f.readlines())
+
+    bot.send_message(
+        message.chat.id,
+        f"👥 Total Users: {total}"
+    )
+
+# ============================================
+# BROADCAST
+# ============================================
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast(message):
+
+    if not is_admin(message.from_user.id):
+        return
+
+    msg = message.text.replace("/broadcast", "").strip()
+
+    if not msg:
+        bot.reply_to(message, "Send message also.")
+        return
+
+    if not os.path.exists(USERS_FILE):
+        return
+
+    sent = 0
+
+    with open(USERS_FILE, "r") as f:
+        users = f.read().splitlines()
+
+    for user in users:
+
+        try:
+
+            bot.send_message(user, msg)
+
+            sent += 1
+
+        except:
+            pass
+
+    bot.send_message(
+        message.chat.id,
+        f"✅ Broadcast Sent To {sent} Users"
+    )
+
+# ============================================
+# DOWNLOAD COMMAND
+# ============================================
 
 @bot.message_handler(commands=['dl'])
 def download_cmd(message):
-    if not check_subscription(message.from_user.id):
-        send_force_sub(message.chat.id); return
-    
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "❌ Usage: `/dl URL`", parse_mode="Markdown"); return
 
-    url = parts[1]
-    msg = bot.send_message(message.chat.id, "🔍 Processing...")
-    threading.Thread(target=start_download, args=(message.chat.id, url)).start()
+    user_id = message.from_user.id
+
+    if not check_subscription(user_id):
+        send_force_sub(message.chat.id)
+        return
+
+    try:
+
+        parts = message.text.split(maxsplit=1)
+
+        if len(parts) < 2:
+
+            bot.reply_to(
+                message,
+                "❌ Usage:\n`/dl URL`",
+                parse_mode="Markdown"
+            )
+
+            return
+
+        url = parts[1]
+
+        chat_id = message.chat.id
+
+        msg = bot.send_message(
+            chat_id,
+            "🔍 Processing..."
+        )
+
+        download_status[chat_id] = {
+            "msg_id": msg.id,
+            "progress": 0
+        }
+
+        thread = threading.Thread(
+            target=start_download,
+            args=(chat_id, url)
+        )
+
+        thread.start()
+
+    except Exception as e:
+
+        bot.reply_to(
+            message,
+            f"❌ Error:\n{e}"
+        )
 
 # ============================================
-# DOWNLOAD LOGIC
+# DOWNLOAD FUNCTION
 # ============================================
 
 def start_download(chat_id, url):
+
     thumb_file = None
+
     try:
-        ydl_opts = {'format': 'best', 'merge_output_format': 'mp4', 'quiet': True}
+
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'merge_output_format': 'mp4',
+            'outtmpl': '%(title)s.%(ext)s',
+            'quiet': True
+        }
+
+        if os.path.exists("cookies.txt"):
+            ydl_opts['cookiefile'] = 'cookies.txt'
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
             info = ydl.extract_info(url, download=True)
+
             filename = ydl.prepare_filename(info)
-            if not filename.endswith(".mp4"): filename = filename.rsplit(".", 1)[0] + ".mp4"
-            
+
+            if not filename.endswith(".mp4"):
+                filename = filename.rsplit(".", 1)[0] + ".mp4"
+
+            title = info.get("title", "Video")
+
+            filesize = round(
+                os.path.getsize(filename) / (1024 * 1024),
+                2
+            )
+
             thumbnail = info.get("thumbnail")
+
             if thumbnail:
+
                 thumb_file = "thumb.jpg"
-                with open(thumb_file, "wb") as f: f.write(requests.get(thumbnail).content)
+
+                r = requests.get(thumbnail)
+
+                with open(thumb_file, "wb") as f:
+                    f.write(r.content)
+
+            caption = f"""
+🎬 *{title}*
+
+📦 Size: {filesize} MB
+✅ Uploaded Successfully
+"""
 
             with open(filename, "rb") as vid:
-                bot.send_video(chat_id, vid, caption=f"🎬 *{info.get('title')}*", 
-                               parse_mode="Markdown", thumb=open(thumb_file, "rb") if thumb_file else None)
-            
+
+                bot.send_video(
+                    chat_id,
+                    vid,
+                    caption=caption,
+                    parse_mode="Markdown",
+                    supports_streaming=True,
+                    thumb=open(thumb_file, "rb") if thumb_file else None
+                )
+
             os.remove(filename)
-            if thumb_file: os.remove(thumb_file)
+
+            if thumb_file and os.path.exists(thumb_file):
+                os.remove(thumb_file)
+
     except Exception as e:
-        bot.send_message(chat_id, f"❌ Failed: {e}")
+
+        bot.send_message(
+            chat_id,
+            f"❌ Download Failed\n\n{e}"
+        )
 
 # ============================================
-# BOT START (UPDATED)
+# BOT START
 # ============================================
 
 if __name__ == "__main__":
-    print("🌐 Starting Flask Server...")
-    keep_alive() # Yeh Render ke port error ko thik karega
-    print("🚀 Bot is Polling...")
+    print("🌐 Starting Flask Keep-Alive Server...")
+    keep_alive()  # <--- Flask yahan se start hoga
+    print("🚀 Advanced OTT Bot Running...")
     bot.infinity_polling()
