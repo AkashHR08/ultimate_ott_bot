@@ -1,6 +1,6 @@
 # ============================================
-# ADVANCED OTT DOWNLOADER BOT
-# WITH ADMIN SYSTEM
+# ADVANCED OTT DOWNLOADER TELEGRAM BOT
+# AUTO THUMBNAIL + AUTO PLATFORM DETECT
 # ============================================
 
 import telebot
@@ -8,27 +8,7 @@ import yt_dlp
 import threading
 import os
 import requests
-from flask import Flask  # Flask add kiya
-from threading import Thread # Threading add kiya
-
-# ============================================
-# FLASK SERVER FOR RENDER (ONLY ADDED THIS)
-# ============================================
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is Alive!"
-
-def run():
-    # Render automatically PORT environment variable deta hai
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
+import time
 
 # ============================================
 # BOT TOKEN
@@ -36,52 +16,64 @@ def keep_alive():
 
 BOT_TOKEN = "8751935211:AAEKf3kld4eqqTMuo8RKAh6OMIzFLY7oVqY"
 
-# ============================================
-# ADMIN USER IDS
-# ============================================
-
-ADMINS = [5254068665]
-
-# ============================================
-
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# ============================================
+# DOWNLOAD STATUS
+# ============================================
 
 download_status = {}
 
 # ============================================
-# FORCE SUB CHANNEL
+# PLATFORM DETECTION
 # ============================================
 
-FORCE_SUB_CHANNEL = "@Movievirus0"
+PLATFORMS = {
+    "hotstar": "Hotstar",
+    "zee5": "Zee5",
+    "sonyliv": "SonyLiv",
+    "mxplayer": "MXPlayer",
+    "aha": "Aha",
+    "discoveryplus": "DiscoveryPlus",
+    "jiotv": "JioTV",
+    "hoichoi": "Hoichoi",
+    "chaupal": "ChaupalTV",
+    "erosnow": "ErosNow",
+    "airtelxstream": "AirtelXstream",
+    "sunnxt": "SunNXT",
+    "etvwin": "ETVWin",
+    "tubitv": "TubiTV",
+    "primevideo": "PrimeVideo",
+    "netflix": "Netflix",
+}
 
 # ============================================
-# START
+# START MESSAGE
 # ============================================
 
 @bot.message_handler(commands=['start'])
 def start(message):
 
-    user_id = message.from_user.id
-
-    if not check_subscription(user_id):
-        send_force_sub(message.chat.id)
-        return
-
     text = """
 🔥 *ADVANCED OTT DOWNLOADER*
 
+✅ Auto Platform Detect
 ✅ Auto Thumbnail
 ✅ HD Quality
-✅ Admin System
-✅ Auto Upload
+✅ Telegram Upload
 ✅ Progress Bar
+✅ Auto Rename
 
 ━━━━━━━━━━━━━━━
 
-📥 Usage:
+📥 Send:
 
 `/dl URL`
 
+Example:
+
+`/dl https://www.hotstar.com/...`
+
 ━━━━━━━━━━━━━━━
 """
 
@@ -89,161 +81,6 @@ def start(message):
         message.chat.id,
         text,
         parse_mode="Markdown"
-    )
-
-# ============================================
-# FORCE SUB CHECK
-# ============================================
-
-def check_subscription(user_id):
-
-    try:
-
-        member = bot.get_chat_member(
-            FORCE_SUB_CHANNEL,
-            user_id
-        )
-
-        if member.status in ["member", "administrator", "creator"]:
-            return True
-
-    except:
-        return False
-
-    return False
-
-# ============================================
-# FORCE SUB MESSAGE
-# ============================================
-
-def send_force_sub(chat_id):
-
-    text = f"""
-❌ *Join Channel First*
-
-👉 {FORCE_SUB_CHANNEL}
-
-Then send /start again.
-"""
-
-    bot.send_message(
-        chat_id,
-        text,
-        parse_mode="Markdown"
-    )
-
-# ============================================
-# ADMIN CHECK
-# ============================================
-
-def is_admin(user_id):
-    return user_id in ADMINS
-
-# ============================================
-# ADMIN PANEL
-# ============================================
-
-@bot.message_handler(commands=['admin'])
-def admin_panel(message):
-
-    if not is_admin(message.from_user.id):
-        return
-
-    text = """
-👑 *ADMIN PANEL*
-
-/users - Total users
-/broadcast - Broadcast message
-/stats - Bot stats
-"""
-
-    bot.send_message(
-        message.chat.id,
-        text,
-        parse_mode="Markdown"
-    )
-
-# ============================================
-# USERS COMMAND
-# ============================================
-
-USERS_FILE = "users.txt"
-
-def save_user(user_id):
-
-    if not os.path.exists(USERS_FILE):
-        open(USERS_FILE, "w").close()
-
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-
-    if str(user_id) not in users:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{user_id}\n")
-
-@bot.message_handler(func=lambda m: True)
-def all_messages(message):
-    save_user(message.from_user.id)
-
-# ============================================
-# TOTAL USERS
-# ============================================
-
-@bot.message_handler(commands=['users'])
-def total_users(message):
-
-    if not is_admin(message.from_user.id):
-        return
-
-    if not os.path.exists(USERS_FILE):
-        total = 0
-    else:
-        with open(USERS_FILE, "r") as f:
-            total = len(f.readlines())
-
-    bot.send_message(
-        message.chat.id,
-        f"👥 Total Users: {total}"
-    )
-
-# ============================================
-# BROADCAST
-# ============================================
-
-@bot.message_handler(commands=['broadcast'])
-def broadcast(message):
-
-    if not is_admin(message.from_user.id):
-        return
-
-    msg = message.text.replace("/broadcast", "").strip()
-
-    if not msg:
-        bot.reply_to(message, "Send message also.")
-        return
-
-    if not os.path.exists(USERS_FILE):
-        return
-
-    sent = 0
-
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-
-    for user in users:
-
-        try:
-
-            bot.send_message(user, msg)
-
-            sent += 1
-
-        except:
-            pass
-
-    bot.send_message(
-        message.chat.id,
-        f"✅ Broadcast Sent To {sent} Users"
     )
 
 # ============================================
@@ -253,24 +90,16 @@ def broadcast(message):
 @bot.message_handler(commands=['dl'])
 def download_cmd(message):
 
-    user_id = message.from_user.id
-
-    if not check_subscription(user_id):
-        send_force_sub(message.chat.id)
-        return
-
     try:
 
         parts = message.text.split(maxsplit=1)
 
         if len(parts) < 2:
-
             bot.reply_to(
                 message,
-                "❌ Usage:\n`/dl URL`",
+                "❌ Send URL with command",
                 parse_mode="Markdown"
             )
-
             return
 
         url = parts[1]
@@ -279,12 +108,15 @@ def download_cmd(message):
 
         msg = bot.send_message(
             chat_id,
-            "🔍 Processing..."
+            "🔍 Detecting Platform..."
         )
 
         download_status[chat_id] = {
             "msg_id": msg.id,
-            "progress": 0
+            "progress": 0,
+            "speed": "0 KB/s",
+            "eta": "Starting",
+            "filename": "Preparing..."
         }
 
         thread = threading.Thread(
@@ -295,11 +127,7 @@ def download_cmd(message):
         thread.start()
 
     except Exception as e:
-
-        bot.reply_to(
-            message,
-            f"❌ Error:\n{e}"
-        )
+        bot.reply_to(message, f"❌ Error:\n{e}")
 
 # ============================================
 # DOWNLOAD FUNCTION
@@ -311,13 +139,23 @@ def start_download(chat_id, url):
 
     try:
 
+        platform = "Unknown"
+
+        for key in PLATFORMS:
+            if key in url.lower():
+                platform = PLATFORMS[key]
+                break
+
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
             'outtmpl': '%(title)s.%(ext)s',
-            'quiet': True
+            'progress_hooks': [progress_hook(chat_id)],
+            'quiet': True,
+            'noplaylist': True
         }
 
+        # cookies support
         if os.path.exists("cookies.txt"):
             ydl_opts['cookiefile'] = 'cookies.txt'
 
@@ -331,11 +169,11 @@ def start_download(chat_id, url):
                 filename = filename.rsplit(".", 1)[0] + ".mp4"
 
             title = info.get("title", "Video")
+            filesize = round(os.path.getsize(filename) / (1024 * 1024), 2)
 
-            filesize = round(
-                os.path.getsize(filename) / (1024 * 1024),
-                2
-            )
+            # =====================================
+            # AUTO THUMBNAIL DOWNLOAD
+            # =====================================
 
             thumbnail = info.get("thumbnail")
 
@@ -348,10 +186,19 @@ def start_download(chat_id, url):
                 with open(thumb_file, "wb") as f:
                     f.write(r.content)
 
+            update_status(
+                chat_id,
+                100,
+                f"✅ Download Complete!\n\n📦 {filesize} MB"
+            )
+
             caption = f"""
 🎬 *{title}*
 
+🔥 Platform: {platform}
 📦 Size: {filesize} MB
+🎞 Quality: Original
+
 ✅ Uploaded Successfully
 """
 
@@ -366,6 +213,7 @@ def start_download(chat_id, url):
                     thumb=open(thumb_file, "rb") if thumb_file else None
                 )
 
+            # delete files
             os.remove(filename)
 
             if thumb_file and os.path.exists(thumb_file):
@@ -373,17 +221,97 @@ def start_download(chat_id, url):
 
     except Exception as e:
 
-        bot.send_message(
+        update_status(
             chat_id,
+            0,
             f"❌ Download Failed\n\n{e}"
         )
 
 # ============================================
-# BOT START
+# PROGRESS FUNCTION
 # ============================================
 
-if __name__ == "__main__":
-    print("🌐 Starting Flask Keep-Alive Server...")
-    keep_alive()  # <--- Flask yahan se start hoga
-    print("🚀 Advanced OTT Bot Running...")
-    bot.infinity_polling()
+def progress_hook(chat_id):
+
+    def hook(d):
+
+        if d['status'] == 'downloading':
+
+            try:
+
+                downloaded = d.get('downloaded_bytes', 0)
+                total = d.get('total_bytes', 1)
+
+                percent = round(downloaded * 100 / total, 1)
+
+                speed = d.get('_speed_str', '0 KB/s')
+                eta = d.get('_eta_str', '0s')
+
+                filename = os.path.basename(
+                    d.get('filename', 'video')
+                )
+
+                download_status[chat_id]['progress'] = percent
+                download_status[chat_id]['speed'] = speed
+                download_status[chat_id]['eta'] = eta
+                download_status[chat_id]['filename'] = filename
+
+                update_status(chat_id)
+
+            except:
+                pass
+
+    return hook
+
+# ============================================
+# STATUS UPDATE
+# ============================================
+
+def update_status(chat_id, progress=None, custom_text=None):
+
+    try:
+
+        data = download_status.get(chat_id)
+
+        if not data:
+            return
+
+        if progress is not None:
+            data['progress'] = progress
+
+        filled = int(data['progress'] / 5)
+
+        bar = "█" * filled + "░" * (20 - filled)
+
+        text = f"""
+🔥 *OTT Downloader*
+
+`{bar}`
+
+📊 Progress: {data['progress']}%
+⚡ Speed: {data['speed']}
+⏳ ETA: {data['eta']}
+
+📄 {data['filename']}
+"""
+
+        if custom_text:
+            text = custom_text
+
+        bot.edit_message_text(
+            text,
+            chat_id,
+            data['msg_id'],
+            parse_mode="Markdown"
+        )
+
+    except:
+        pass
+
+# ============================================
+# START BOT
+# ============================================
+
+print("🚀 Advanced OTT Downloader Running...")
+
+bot.infinity_polling()
