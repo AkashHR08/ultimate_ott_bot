@@ -1,317 +1,155 @@
-# ============================================
-# ADVANCED OTT DOWNLOADER TELEGRAM BOT
-# AUTO THUMBNAIL + AUTO PLATFORM DETECT
-# ============================================
-
 import telebot
+import os
 import yt_dlp
 import threading
-import os
-import requests
+from telebot import types
+from flask import Flask # Added for Render
 import time
 
-# ============================================
-# BOT TOKEN
-# ============================================
+# --- FLASK SERVER FOR RENDER ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is Running!"
+
+def run_flask():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = threading.Thread(target=run_flask)
+    t.start()
+# -------------------------------
 
 BOT_TOKEN = "8751935211:AAEKf3kld4eqqTMuo8RKAh6OMIzFLY7oVqY"
-
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# ============================================
-# DOWNLOAD STATUS
-# ============================================
 
 download_status = {}
 
-# ============================================
-# PLATFORM DETECTION
-# ============================================
-
-PLATFORMS = {
-    "hotstar": "Hotstar",
-    "zee5": "Zee5",
-    "sonyliv": "SonyLiv",
-    "mxplayer": "MXPlayer",
-    "aha": "Aha",
-    "discoveryplus": "DiscoveryPlus",
-    "jiotv": "JioTV",
-    "hoichoi": "Hoichoi",
-    "chaupal": "ChaupalTV",
-    "erosnow": "ErosNow",
-    "airtelxstream": "AirtelXstream",
-    "sunnxt": "SunNXT",
-    "etvwin": "ETVWin",
-    "tubitv": "TubiTV",
-    "primevideo": "PrimeVideo",
-    "netflix": "Netflix",
-}
-
-# ============================================
-# START MESSAGE
-# ============================================
-
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start', 'help'])
 def start(message):
+    help_text = """
+🚀 *OTT Pro Downloader Bot*
 
-    text = """
-🔥 *ADVANCED OTT DOWNLOADER*
+*Commands:*
+`/dl -jstar [hotstar_url]` - Hotstar support
+`/dl [direct_link]` - Direct m3u8/mp4
 
-✅ Auto Platform Detect
-✅ Auto Thumbnail
-✅ HD Quality
-✅ Telegram Upload
-✅ Progress Bar
-✅ Auto Rename
+*Example:*
+`/dl -jstar https://hotstar.com/show/123`
 
-━━━━━━━━━━━━━━━
-
-📥 Send:
-
-`/dl URL`
-
-Example:
-
-`/dl https://www.hotstar.com/...`
-
-━━━━━━━━━━━━━━━
+*Features:*
+✅ Original Quality
+✅ Live Progress Bar
+✅ Hotstar Auto-extract
+✅ 1080p Full HD
 """
-
-    bot.send_message(
-        message.chat.id,
-        text,
-        parse_mode="Markdown"
-    )
-
-# ============================================
-# DOWNLOAD COMMAND
-# ============================================
+    markup = types.InlineKeyboardMarkup()
+    btn1 = types.InlineKeyboardButton("📱 Test Hotstar", callback_data="test")
+    markup.add(btn1)
+    
+    bot.send_message(message.chat.id, help_text, parse_mode='Markdown', reply_markup=markup)
 
 @bot.message_handler(commands=['dl'])
-def download_cmd(message):
-
+def handle_dl_command(message):
     try:
-
-        parts = message.text.split(maxsplit=1)
-
+        parts = message.text.split()
         if len(parts) < 2:
-            bot.reply_to(
-                message,
-                "❌ Send URL with command",
-                parse_mode="Markdown"
-            )
+            bot.reply_to(message, "❌ Format: `/dl -jstar [hotstar_url]`", parse_mode='Markdown')
             return
-
-        url = parts[1]
-
+        
+        platform = parts[1]
+        url = ' '.join(parts[2:])
         chat_id = message.chat.id
-
-        msg = bot.send_message(
-            chat_id,
-            "🔍 Detecting Platform..."
-        )
-
+        
+        status_msg = bot.send_message(chat_id, "🔍 Extracting streams...")
         download_status[chat_id] = {
-            "msg_id": msg.id,
-            "progress": 0,
-            "speed": "0 KB/s",
-            "eta": "Starting",
-            "filename": "Preparing..."
+            'status_msg_id': status_msg.id,
+            'progress': 0,
+            'speed': '0 KB/s',
+            'eta': 'Extracting...',
+            'filename': 'Hotstar Stream'
         }
-
-        thread = threading.Thread(
-            target=start_download,
-            args=(chat_id, url)
-        )
-
+        
+        thread = threading.Thread(target=process_download, args=(url, platform, chat_id))
         thread.start()
-
+        
     except Exception as e:
-        bot.reply_to(message, f"❌ Error:\n{e}")
+        bot.reply_to(message, f"❌ Error: {str(e)}")
 
-# ============================================
-# DOWNLOAD FUNCTION
-# ============================================
-
-def start_download(chat_id, url):
-
-    thumb_file = None
-
+def process_download(url, platform, chat_id):
     try:
-
-        platform = "Unknown"
-
-        for key in PLATFORMS:
-            if key in url.lower():
-                platform = PLATFORMS[key]
-                break
-
-        ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',
-            'merge_output_format': 'mp4',
-            'outtmpl': '%(title)s.%(ext)s',
-            'progress_hooks': [progress_hook(chat_id)],
-            'quiet': True,
-            'noplaylist': True
-        }
-
-        # cookies support
-        if os.path.exists("cookies.txt"):
-            ydl_opts['cookiefile'] = 'cookies.txt'
-
+        if platform == '-jstar':
+            ydl_opts = {
+                'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                'outtmpl': 'hotstar_%(title)s.%(ext)s',
+                'merge_output_format': 'mp4',
+                'progress_hooks': [progress_hook(chat_id)],
+                'cookies': 'cookies.txt' if os.path.exists("cookies.txt") else None,
+            }
+        else:
+            ydl_opts = {
+                'format': 'best[ext=mp4]+bestaudio[ext=m4a]/best',
+                'outtmpl': '%(title)s.%(ext)s',
+                'merge_output_format': 'mp4',
+                'progress_hooks': [progress_hook(chat_id)],
+            }
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-
             info = ydl.extract_info(url, download=True)
-
             filename = ydl.prepare_filename(info)
-
-            if not filename.endswith(".mp4"):
+            if not os.path.exists(filename):
                 filename = filename.rsplit(".", 1)[0] + ".mp4"
-
-            title = info.get("title", "Video")
-            filesize = round(os.path.getsize(filename) / (1024 * 1024), 2)
-
-            # =====================================
-            # AUTO THUMBNAIL DOWNLOAD
-            # =====================================
-
-            thumbnail = info.get("thumbnail")
-
-            if thumbnail:
-
-                thumb_file = "thumb.jpg"
-
-                r = requests.get(thumbnail)
-
-                with open(thumb_file, "wb") as f:
-                    f.write(r.content)
-
-            update_status(
-                chat_id,
-                100,
-                f"✅ Download Complete!\n\n📦 {filesize} MB"
-            )
-
-            caption = f"""
-🎬 *{title}*
-
-🔥 Platform: {platform}
-📦 Size: {filesize} MB
-🎞 Quality: Original
-
-✅ Uploaded Successfully
-"""
-
-            with open(filename, "rb") as vid:
-
-                bot.send_video(
-                    chat_id,
-                    vid,
-                    caption=caption,
-                    parse_mode="Markdown",
-                    supports_streaming=True,
-                    thumb=open(thumb_file, "rb") if thumb_file else None
-                )
-
-            # delete files
+            
+            filesize = os.path.getsize(filename) / (1024*1024)
+            height = info.get('height', 'Unknown')
+            
+            update_status(chat_id, 100, f"✅ Downloaded!\n📺 {height}p | {filesize:.1f}MB")
+            
+            with open(filename, 'rb') as video:
+                caption = f"🎬 *{info.get('title', 'Video')}*\n\n📺 Quality: {height}p\n📦 Size: {filesize:.1f}MB"
+                bot.send_video(chat_id, video, caption=caption, parse_mode='Markdown', supports_streaming=True)
+            
             os.remove(filename)
-
-            if thumb_file and os.path.exists(thumb_file):
-                os.remove(thumb_file)
-
+            
     except Exception as e:
-
-        update_status(
-            chat_id,
-            0,
-            f"❌ Download Failed\n\n{e}"
-        )
-
-# ============================================
-# PROGRESS FUNCTION
-# ============================================
+        update_status(chat_id, 0, f"❌ Failed: {str(e)}")
+    
+    finally:
+        if chat_id in download_status:
+            del download_status[chat_id]
 
 def progress_hook(chat_id):
-
     def hook(d):
-
         if d['status'] == 'downloading':
-
-            try:
-
-                downloaded = d.get('downloaded_bytes', 0)
-                total = d.get('total_bytes', 1)
-
-                percent = round(downloaded * 100 / total, 1)
-
-                speed = d.get('_speed_str', '0 KB/s')
-                eta = d.get('_eta_str', '0s')
-
-                filename = os.path.basename(
-                    d.get('filename', 'video')
-                )
-
-                download_status[chat_id]['progress'] = percent
-                download_status[chat_id]['speed'] = speed
-                download_status[chat_id]['eta'] = eta
-                download_status[chat_id]['filename'] = filename
-
+            status = download_status.get(chat_id)
+            if status:
+                p = d.get('_percent_str', '0%').replace('%','')
+                status['progress'] = float(p)
+                status['speed'] = d.get('_speed_str', '0 KB/s')
+                status['eta'] = d.get('_eta_str', '00:00')
                 update_status(chat_id)
-
-            except:
-                pass
-
     return hook
 
-# ============================================
-# STATUS UPDATE
-# ============================================
-
 def update_status(chat_id, progress=None, custom_text=None):
-
+    status = download_status.get(chat_id)
+    if not status: return
+    
+    if progress is not None: status['progress'] = progress
+    
+    bar = "█" * int(status['progress']/4) + "░" * (25 - int(status['progress']/4))
+    text = f"🔥 *Downloader*\n\n`{bar} {status['progress']}%` \n⚡ {status['speed']} | ⏰ {status['eta']}"
+    
+    if custom_text: text = custom_text
+    
     try:
+        bot.edit_message_text(text, chat_id, status['status_msg_id'], parse_mode='Markdown')
+    except: pass
 
-        data = download_status.get(chat_id)
-
-        if not data:
-            return
-
-        if progress is not None:
-            data['progress'] = progress
-
-        filled = int(data['progress'] / 5)
-
-        bar = "█" * filled + "░" * (20 - filled)
-
-        text = f"""
-🔥 *OTT Downloader*
-
-`{bar}`
-
-📊 Progress: {data['progress']}%
-⚡ Speed: {data['speed']}
-⏳ ETA: {data['eta']}
-
-📄 {data['filename']}
-"""
-
-        if custom_text:
-            text = custom_text
-
-        bot.edit_message_text(
-            text,
-            chat_id,
-            data['msg_id'],
-            parse_mode="Markdown"
-        )
-
-    except:
-        pass
-
-# ============================================
-# START BOT
-# ============================================
-
-print("🚀 Advanced OTT Downloader Running...")
-
-bot.infinity_polling()
+# --- START BOT ---
+if __name__ == "__main__":
+    print("🌐 Starting Flask Keep-Alive Server...")
+    keep_alive() 
+    print("🚀 Hotstar OTT Bot Started!")
+    bot.infinity_polling()
